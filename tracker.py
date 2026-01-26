@@ -1,3 +1,4 @@
+import json
 from confluent_kafka import Consumer
 
 cosumerConfig = {
@@ -23,9 +24,10 @@ try:
             continue
 
         value = msg.value().decode("utf-8")
+        order = json.loads(value)
         # Proper message received
         print(
-            f"✅ Received message: {value} from topic: {msg.topic()}, partition: [{msg.partition()}], offset: {msg.offset()}"
+            f"-------------------\n✅ Received message:\nOrder: {order['item']}, From: {order['user']}, Quantity: {order['quantity']}\nTopic: {msg.topic()}, Partition: [{msg.partition()}], Offset: {msg.offset()}\n-------------------"
         )
 except KeyboardInterrupt:
     print("Exiting consumer...")

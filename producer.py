@@ -19,7 +19,7 @@ def delivery_report(err, msg):
         )
 
 
-order = {"order_id": str(uuid4()), "user": "Bob", "item": "laptop", "quantity": 1}
+order = {"order_id": str(uuid4()), "user": "Lois", "item": "Pizza", "quantity": 2}
 
 # turn the order dictionary into a JSON string and then encode it to bytes
 orderStr = json.dumps(order).encode("utf-8")
