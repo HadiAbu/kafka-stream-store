@@ -1,25 +1,84 @@
-version: '3.8'
-
 services:
   kafka:
-    image: confluentinc/cp-kafka:7.8.3 # Use a stable version tag
+    image: confluentinc/cp-kafka:7.8.3
     container_name: kafka
     ports:
-      - "9092:9092"
+      - "9092:9092"   # host access
     environment:
-      # Note: Kafka variables use UNDERSCORES (_), not hyphens (-)
+      # KRaft single-node
       KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: 'broker,controller'
-      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@localhost:9093'
-      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093'
-      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://localhost:9092'
-      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT'
+      KAFKA_PROCESS_ROLES: "broker,controller"
+
+      # IMPORTANT: use the container hostname, not localhost
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+
+      # Listeners:
+      # - PLAINTEXT_HOST for your machine (localhost:9092)
+      # - PLAINTEXT for other containers (kafka:29092)
+      # - CONTROLLER for KRaft controller traffic
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_CONTROLLER_ID: 1
-      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk' # Kraft requires a specific UUID format
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+
+      # If you ever create more topics in dev, this avoids surprises
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+
+      # KRaft cluster id (your value is fine as long as it's valid)
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+
     volumes:
       - kafka-data:/var/lib/kafka/data
 
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      # IMPORTANT: use container listener
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    environment:
+      POSTGRES_DB: ordersdb
+      POSTGRES_USER: orders
+      POSTGRES_PASSWORD: orderspass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orders -d ordersdb"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  orders-api:
+    build: .
+    container_name: orders-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://orders:orderspass@postgres:5432/ordersdb
+      # For later when we add Kafka producer/consumer:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./:/app
+
 volumes:
   kafka-data:
+  pgdata:
