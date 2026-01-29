@@ -9,7 +9,7 @@ from app.schemas import OrderCreate, OrderOut, UserCreate, UserOut
 app = FastAPI(title="Orders API")
 
 # TEMP: auto-create tables for fast iteration; we'll replace with Alembic.
-Base.metadata.create_all(bind=engine)
+# Base.metadata.create_all(bind=engine)
 
 
 def get_db():
