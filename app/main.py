@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 
 from app.db import SessionLocal, engine
+from app.kafka import KafkaPublisher
 from app.models import Base, Order, OrderItem, OrderStatus, User
 from app.schemas import OrderCreate, OrderOut, UserCreate, UserOut
 
@@ -18,6 +19,18 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+@app.on_event("startup")
+def startup() -> None:
+    app.state.kafka = KafkaPublisher()
+
+
+@app.on_event("shutdown")
+def shutdown() -> None:
+    publisher = getattr(app.state, "kafka", None)
+    if publisher:
+        publisher.close()
 
 
 @app.get("/health")
@@ -64,6 +77,11 @@ def create_order(payload: OrderCreate, db: Session = Depends(get_db)):
     db.add(order)
     db.commit()
     db.refresh(order)
+
+    publisher = getattr(app.state, "kafka", None)
+    if publisher:
+        publisher.publish_order_created(order)
+
     return order
 
 

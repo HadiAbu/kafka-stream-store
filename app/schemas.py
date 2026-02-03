@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field
 
+from app.models import OrderStatus
 
 class UserCreate(BaseModel):
     email: EmailStr
@@ -42,7 +43,7 @@ class OrderItemOut(BaseModel):
 class OrderOut(BaseModel):
     id: UUID
     user_id: UUID
-    status: str
+    status: OrderStatus
     total_amount: float
     currency: str
     created_at: datetime
@@ -51,3 +52,4 @@ class OrderOut(BaseModel):
 
     class Config:
         from_attributes = True
+        use_enum_values = True
